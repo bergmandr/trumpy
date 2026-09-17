@@ -10,3 +10,5 @@ wheels/
 .venv
 
 old/
+.python-version
+launch.json
