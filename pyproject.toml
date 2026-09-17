@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trumpy"
+version = "0.1.0"
+description = "A cosmic ray simulation package"
+authors = [
+    {name = "Douglas Bergman", email = "bergmandr@gmail.com"},
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "scipy",
+    "awkward",
+    "numba",
+    "pyyaml"
+]
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[project.scripts]
+trumpy = "trumpy:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
