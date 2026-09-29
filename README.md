@@ -103,9 +103,8 @@ class Simulation:
 ```
 Note that the results are returned as an `awkward` array.
 
-## FYI
-
-Gemini's expectation for pluggable components:
+### Summary of Simulation components
+Here's the original idea for pluggable components (now perhaps outdated):
 ```
 Simulation
  ├── Source (Track Generator)
