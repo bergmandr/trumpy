@@ -61,6 +61,50 @@ typedef struct {
 } Track;
 ```
 
+## Simulation
+
+The `Simulation` class is the top level organization in `trumpy` replacing much of what is in `trump.c`. It has a number of `Protocol`s for other class types needed to run the program
+```python
+class TrackSource(Protocol):
+    def generate_event(self, rng: np.random.Generator, timestamp: float) -> Track:
+        ...
+class RunSchedule(Protocol):
+    def get_trials(self) -> Iterator[Tuple[int, float]]:
+        ...
+class AtmosphereModel(Protocol):
+    def get_fluorescence_yield(self, altitudes: np.ndarray, de_dep: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
+        ...
+    def get_transmission(self, emission_points: np.ndarray, mirror_centers: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
+class Experiment(Protocol):
+    wavelength_bands: np.ndarray
+    mirror_centers: np.ndarray
+    def passes_fast_cuts(self, track: Track) -> bool:
+        ...
+    def trace_photons(self, track: Track, photons_at_mirrors: np.ndarray, rng: np.random.Generator) -> ak.Array:
+        ...
+    def process_electronics(self, pe_times: ak.Array, rng: np.random.Generator) -> ak.Array:
+        ...
+```
+basically saying that one needs a source of `Track`s, a run schuduler (to prelace the main loop in `trump.c`), an atmosphere, and the experimental setup in order to run the program. The `Simulation` class sets up everything and does the run.
+```
+class Simulation:
+    """Orchestrates the Monte Carlo execution pipeline."""
+    def __init__(self,
+            experiment: Experiment,
+            atmosphere: AtmosphereModel,
+            source: TrackSource,
+            schedule: RunSchedule, seed: int = 42):
+        self.experiment = experiment
+        self.atmosphere = atmosphere
+        self.source = source
+        self.schedule = schedule
+        self.rng = np.random.default_rng(seed)
+    def run(self) -> ak.Array:
+```
+Note that the results are returned as an `awkward` array.
+
+## FYI
+
 Gemini's expectation for pluggable components:
 ```
 Simulation
