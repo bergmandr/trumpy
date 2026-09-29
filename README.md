@@ -86,7 +86,7 @@ class Experiment(Protocol):
         ...
 ```
 basically saying that one needs a source of `Track`s, a run schuduler (to prelace the main loop in `trump.c`), an atmosphere, and the experimental setup in order to run the program. The `Simulation` class sets up everything and does the run.
-```
+```python
 class Simulation:
     """Orchestrates the Monte Carlo execution pipeline."""
     def __init__(self,
