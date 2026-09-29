@@ -1,3 +1,28 @@
+# TRUMP in python
+
+This is an implementation of the TRUMP air-fluorescence detector simulation MC program. The fundamental C `structs` have been implemented as python `dataclass`es. 
+
+An example: `Track`
+```python
+@dataclass
+class Track:
+    """Intrinsic physical properties of the shower or laser."""
+    # Global parameters
+    species: int            # e.g., 1 for proton, 5626 for Fe
+    log_e: float            # log10(E/eV)
+    zenith: float           # zenith angle in radians
+    impact_v: np.ndarray    # shape (3,) impact point in CLF coordinates
+    track_uv: np.ndarray    # shape (3,) unit vector of track direction
+
+    # Vectorized Segments (Structure of Arrays)
+    n_segments: int
+    positions: np.ndarray   # shape (n_segments, 3)
+    time_gen: np.ndarray    # shape (n_segments,) emission times
+    altitude: np.ndarray    # shape (n_segments,) altitude at segment mid-points
+    dl_seg: np.ndarray      # shape (n_segments,) segment lengths
+    de_dep: np.ndarray      # shape (n_segments,) energy deposit profile
+```
+
 Gemini's expectation for pluggable components:
 ```
 Simulation
