@@ -12,3 +12,4 @@ wheels/
 old/
 .python-version
 launch.json
+repomix-output-*
