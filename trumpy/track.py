@@ -12,26 +12,46 @@ class Track:
     track_uv: np.ndarray    # shape (3,) unit vector of track direction
 
     # Vectorized Segments (Structure of Arrays)
-    nseg: int               # Number of air shower segments **
-    positions: np.ndarray   # shape (nseg, 3)
+    nseg: int               # Number of air shower segments
+    positions: np.ndarray   # shape (nseg, 3) 3D coordinates at top of each segment
     time_gen: np.ndarray    # shape (nseg,) emission times
-    altitude: np.ndarray    # shape (nseg,) altitude at segment mid-points
-    dlseg: np.ndarray       # shape (nseg,) distance (m) to start of next shower segment **
-    dedep: np.ndarray       # shape (nseg,) energy deposit profile **
-                            # energy deposition (summed over shower) rate (eV/(g/cm2)) at top of shower segment
+    dlseg: np.ndarray       # shape (nseg,) distance (m) to start of next shower segment
+    dedep: np.ndarray       # shape (nseg,) energy deposit profile
+    
+    # Required physics variables
+    age: np.ndarray         # shape (nseg,) age at middle of each segment
+    dlmid: np.ndarray       # shape (nseg,) density weighted distance (m) to middle of segment
+    dxseg: np.ndarray       # shape (nseg,) total grammage in shower segment
+    nch: np.ndarray         # shape (nseg,) number of charged particles in segment
+    molrad: np.ndarray      # shape (nseg,) moliere radius at segment mid-point (m)
 
-    # Copying TrackSegment **
-    position: np.ndarray   # shape (nseg,) distance from top of first segment
-    age: np.ndarray        # shape (nseg,) age at middle of each segment
-    dlmid: np.ndarray      # shape (nseg,) density weighted distance (m) to middle of segment
-    dxseg: np.ndarray      # shape (nseg,) total grammage in shower segment
-    height: np.ndarray     # shape (nseg,) altitude of top of shower segment (m) 
-    nch: np.ndarray        # shape (nseg,) number of charged particles in segment
-    molrad: np.ndarray     # shape (nseg,) moliere radius at segment mid-point (m)
+    # Yield profiles
+    nfl: np.ndarray         # shape (nseg, nwl) number of fluorescence photons produced in segment
+    pcv: np.ndarray         # shape (nseg, nwl) Cherenkov photons added to beam in the previous segment
+    ncv: np.ndarray         # shape (nseg, nwl) Cherenkov photons in beam at top of segment
 
-    nfl: np.ndarray        # shape (nseg,nwl) number of fluorescence photons produced in segment
-    pcv: np.ndarray        # shape (nseg,nwl) Cherenkov photons added to beam in the previous segment
-    ncv: np.ndarray        # shape (nseg,nwl) Cherenkov photons in beam at top of segment
+    # Derived Geometrical Properties
+    @property
+    def height(self) -> np.ndarray:
+        """shape (nseg,) altitude of top of shower segment (m)."""
+        # Assuming Z-axis (index 2) represents elevation in CLF coordinates
+        return self.positions[:, 2]
+
+    @property
+    def altitude(self) -> np.ndarray:
+        """shape (nseg,) altitude at segment mid-points (m)."""
+        # Step halfway down the segment along the track Z-axis.
+        # track_uv[2] handles the zenith angle projection and sign automatically.
+        return self.positions[:, 2] + 0.5 * self.dlseg * self.track_uv[2]
+
+    @property
+    def position(self) -> np.ndarray:
+        """shape (nseg,) 1D slant distance from top of first segment (m)."""
+        # Calculate the 3D displacement vector from the first segment top to all segments
+        delta = self.positions - self.positions[0]
+        # Project the displacement onto the track direction (dot product)
+        # Using np.sum with axis=1 performs a broadcasted row-wise dot product
+        return np.sum(delta * self.track_uv, axis=1)
 
 @dataclass
 class ObservedTrack:
