@@ -11,7 +11,7 @@ class TrackSource(Protocol):
 class RunSchedule(Protocol):
     def get_trials(self) -> Iterator[Tuple[int, float]]:
 class AtmosphereModel(Protocol):
-    def get_fluorescence_yield(self, altitudes: np.ndarray, de_dep: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
+    def get_fluorescence_yield(self, altitudes: np.ndarray, dedep: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
     def get_transmission(self, emission_points: np.ndarray, mirror_centers: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
 class Experiment(Protocol):
     wavelength_bands: np.ndarray
@@ -71,12 +71,12 @@ class Track:
     track_uv: np.ndarray    # shape (3,) unit vector of track direction
 
     # Vectorized Segments (Structure of Arrays)
-    n_segments: int
-    positions: np.ndarray   # shape (n_segments, 3)
-    time_gen: np.ndarray    # shape (n_segments,) emission times
-    altitude: np.ndarray    # shape (n_segments,) altitude at segment mid-points
-    dl_seg: np.ndarray      # shape (n_segments,) segment lengths
-    de_dep: np.ndarray      # shape (n_segments,) energy deposit profile
+    nseg: int
+    positions: np.ndarray   # shape (nseg, 3)
+    time_gen: np.ndarray    # shape (nseg,) emission times
+    altitude: np.ndarray    # shape (nseg,) altitude at segment mid-points
+    dlseg: np.ndarray      # shape (nseg,) segment lengths
+    dedep: np.ndarray      # shape (nseg,) energy deposit profile
 ```
 replaces
 ```C
@@ -127,18 +127,18 @@ class VerticalShowerGenerator:
         self.log_e = log_e
         self.gh = GaisserHillasProfile(x0=-75.8, xmax=773.2, nmax=6.692e9, lambda_inv=59.9)
     def generate_event(self, rng: np.random.Generator, timestamp: float) -> Track:
-        n_segments = 100
-        slant_depths = np.linspace(0, 1200, n_segments)
+        nseg = 100
+        slant_depths = np.linspace(0, 1200, nseg)
         impact = np.array([0.0, 0.0, 1400.0])
         uv = np.array([0.0, 0.0, -1.0])
-        distances = np.linspace(30000, 0, n_segments)
+        distances = np.linspace(30000, 0, nseg)
         segment_positions = impact + distances[:, np.newaxis] * (uv * -1.0)
         # Build the Track using our real dataclass
         return Track(species=1, log_e=self.log_e, zenith=0.0, impact_v=impact,
-            track_uv=uv, positions=segment_positions, n_segments=n_segments,
-            time_gen=np.linspace(0, 30000, n_segments),  # 30 us track time
+            track_uv=uv, positions=segment_positions, nseg=nseg,
+            time_gen=np.linspace(0, 30000, nseg),  # 30 us track time
             altitude=30000.0 - (slant_depths * 20.0),    # Dummy altitude conversion
-            dl_seg=np.full(n_segments, 300.0),
-            de_dep=self.gh.evaluate_dedep(slant_depths)  # Real energy deposit!
+            dlseg=np.full(nseg, 300.0),
+            dedep=self.gh.evaluate_dedep(slant_depths)  # Real energy deposit!
         )
 ```

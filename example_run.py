@@ -28,12 +28,12 @@ class VerticalShowerGenerator:
         self.gh = GaisserHillasProfile(x0=-75.8, xmax=773.2, nmax=6.692e9, lambda_inv=59.9)
 
     def generate_event(self, rng: np.random.Generator, timestamp: float) -> Track:
-        n_segments = 100
-        slant_depths = np.linspace(0, 1200, n_segments)
+        nseg = 100
+        slant_depths = np.linspace(0, 1200, nseg)
         impact = np.array([0.0, 0.0, 1400.0])
         uv = np.array([0.0, 0.0, -1.0])
         # Mock 3D segment positions (tracing backward from impact)
-        distances = np.linspace(30000, 0, n_segments)
+        distances = np.linspace(30000, 0, nseg)
         segment_positions = impact + distances[:, np.newaxis] * (uv * -1.0)
         # Build the Track using our real dataclass
         return Track(
@@ -43,20 +43,20 @@ class VerticalShowerGenerator:
             impact_v=impact,
             track_uv=uv,
             positions=segment_positions,
-            n_segments=n_segments,
-            time_gen=np.linspace(0, 30000, n_segments),  # 30 us track time
+            nseg=nseg,
+            time_gen=np.linspace(0, 30000, nseg),  # 30 us track time
             altitude=30000.0 - (slant_depths * 20.0),    # Dummy altitude conversion
-            dl_seg=np.full(n_segments, 300.0),
-            de_dep=self.gh.evaluate_dedep(slant_depths)  # Real energy deposit!
+            dlseg=np.full(nseg, 300.0),
+            dedep=self.gh.evaluate_dedep(slant_depths)  # Real energy deposit!
         )
 
 # =====================================================================
 # 3. Dummy Atmosphere (No extinction, flat yield)
 # =====================================================================
 class DummyAtmosphere:
-    def get_fluorescence_yield(self, altitudes, de_dep, wavelengths):
+    def get_fluorescence_yield(self, altitudes, dedep, wavelengths):
         # Just assume 5 photons emitted per MeV deposited
-        return de_dep[:, np.newaxis] * np.ones_like(wavelengths) * 5.0
+        return dedep[:, np.newaxis] * np.ones_like(wavelengths) * 5.0
 
     def get_transmission(self, emission_points, mirror_centers, wavelengths):
         N, M, W = len(emission_points), len(mirror_centers), len(wavelengths)

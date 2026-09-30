@@ -35,16 +35,16 @@ def test_gaisser_hillas_physical_limits(sample_gh_profile):
 
 def test_track_vectorized_initialization(sample_gh_profile):
     """Verifies that the Track dataclass correctly handles vectorized SoA inputs."""
-    n_segments = 500
+    nseg = 500
     
     # Generate mock slant depths mapping to altitude/time
-    slant_depths = np.linspace(0, 1200, n_segments)
+    slant_depths = np.linspace(0, 1200, nseg)
     
     # Populate the array structures
-    de_dep_array = sample_gh_profile.evaluate_dedep(slant_depths)
-    time_array = np.linspace(0, 30000, n_segments)  # mock time in ns
-    alt_array = np.linspace(30000, 1400, n_segments) # mock altitude in m
-    dl_array = np.full(n_segments, 50.0)            # 50m uniform segments
+    dedep_array = sample_gh_profile.evaluate_dedep(slant_depths)
+    time_array = np.linspace(0, 30000, nseg)  # mock time in ns
+    alt_array = np.linspace(30000, 1400, nseg) # mock altitude in m
+    dl_array = np.full(nseg, 50.0)            # 50m uniform segments
     
     track = Track(
         species=1, # Proton
@@ -52,18 +52,18 @@ def test_track_vectorized_initialization(sample_gh_profile):
         zenith=np.deg2rad(45.0),
         impact_v=np.array([0.0, 0.0, 1400.0]),
         track_uv=np.array([0.707, 0.0, -0.707]),
-        n_segments=n_segments,
+        nseg=nseg,
         time_gen=time_array,
         altitude=alt_array,
-        dl_seg=dl_array,
-        de_dep=de_dep_array
+        dlseg=dl_array,
+        dedep=dedep_array
     )
     
     # Assertions to guarantee Structure of Arrays consistency
-    assert track.n_segments == n_segments
-    assert track.de_dep.shape == (n_segments,)
-    assert track.time_gen.shape == (n_segments,)
+    assert track.nseg == nseg
+    assert track.dedep.shape == (nseg,)
+    assert track.time_gen.shape == (nseg,)
     
     # Check that the max energy deposit aligns physically
-    max_idx = np.argmax(track.de_dep)
+    max_idx = np.argmax(track.dedep)
     assert slant_depths[max_idx] == pytest.approx(sample_gh_profile.xmax, abs=5.0)

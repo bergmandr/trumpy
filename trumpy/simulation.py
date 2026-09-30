@@ -17,7 +17,7 @@ class RunSchedule(Protocol):
         ...
 
 class AtmosphereModel(Protocol):
-    def get_fluorescence_yield(self, altitudes: np.ndarray, de_dep: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
+    def get_fluorescence_yield(self, altitudes: np.ndarray, dedep: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
         ...
     def get_transmission(self, emission_points: np.ndarray, mirror_centers: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
         ...
@@ -74,13 +74,13 @@ class Simulation:
                 continue
 
             # 3. Light Emission (Fluorescence)
-            # Yield shape: (n_segments, n_wavelengths)
+            # Yield shape: (nseg, n_wavelengths)
             photon_production = self.atmosphere.get_fluorescence_yield(
-                track.altitude, track.de_dep, self.experiment.wavelength_bands
+                track.altitude, track.dedep, self.experiment.wavelength_bands
             )
 
             # 4. Atmospheric Transmission
-            # Transmission shape: (n_segments, n_mirrors, n_wavelengths)
+            # Transmission shape: (nseg, n_mirrors, n_wavelengths)
             transmission = self.atmosphere.get_transmission(
                 track.positions, self.experiment.mirror_centers, self.experiment.wavelength_bands
             )

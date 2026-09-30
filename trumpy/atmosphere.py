@@ -130,12 +130,12 @@ class Atmosphere:
         # 4. Total Transmission
         return np.exp(-(tau_ray + tau_mie))
 
-    def get_fluorescence_yield(self, altitudes: np.ndarray, de_dep: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
+    def get_fluorescence_yield(self, altitudes: np.ndarray, dedep: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
         """
         Calculates the total fluorescence photons produced across all segments.
         
         altitudes: (N,) array of segment altitudes
-        de_dep: (N,) array of energy deposited in MeV for each segment
+        dedep: (N,) array of energy deposited in MeV for each segment
         wavelengths: (W,) array of wavelength band centers
         
         Returns: (N, W) array of total photons emitted per segment per wavelength
@@ -149,7 +149,7 @@ class Atmosphere:
         specific_yield = self.fy_model.yield_per_mev(rho, temp, wavelengths)
         
         # 3. Multiply by the actual energy deposit (N,) -> broadcast to (N, W)
-        total_photons = specific_yield * de_dep[:, np.newaxis]
+        total_photons = specific_yield * dedep[:, np.newaxis]
         
         return total_photons
     

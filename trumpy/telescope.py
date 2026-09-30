@@ -29,6 +29,6 @@ class IdealSphericalMirror(MirrorTopology):
 class SegmentedMirror(MirrorTopology):
     """A dish made of individual adjustable facets (e.g., for detailed CTA/TA alignment)."""
     # Vectorized arrays for N segments (e.g., 18 petals)
-    segment_centers: np.ndarray     # shape (n_segments, 3)
-    segment_normals: np.ndarray     # shape (n_segments, 3)
-    segment_radii: np.ndarray       # shape (n_segments,)
+    segment_centers: np.ndarray     # shape (nseg, 3)
+    segment_normals: np.ndarray     # shape (nseg, 3)
+    segment_radii: np.ndarray       # shape (nseg,)
