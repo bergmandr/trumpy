@@ -53,11 +53,22 @@ def test_track_vectorized_initialization(sample_gh_profile):
         impact_v=np.array([0.0, 0.0, 1400.0]),
         track_uv=np.array([0.707, 0.0, -0.707]),
         nseg=nseg,
+        positions=np.column_stack([np.zeros_like(alt_array), np.zeros_like(alt_array), alt_array]),
         time_gen=time_array,
         altitude=alt_array,
         dlseg=dl_array,
-        dedep=dedep_array
-    )
+        dedep=dedep_array,
+        position=alt_array,
+        age=np.full(nseg, 1.0),
+        dlmid=np.full(nseg, 150.0),
+        dxseg=np.full(nseg, 20.0),
+        height=alt_array,
+        nch=np.full(nseg, 1000.0),
+        molrad=np.full(nseg, 100.0),
+        nfl=np.zeros((nseg, 2)),
+        pcv=np.zeros((nseg, 2)),
+        ncv=np.zeros((nseg, 2))
+)
     
     # Assertions to guarantee Structure of Arrays consistency
     assert track.nseg == nseg
