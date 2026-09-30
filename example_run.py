@@ -47,7 +47,19 @@ class VerticalShowerGenerator:
             time_gen=np.linspace(0, 30000, nseg),  # 30 us track time
             altitude=30000.0 - (slant_depths * 20.0),    # Dummy altitude conversion
             dlseg=np.full(nseg, 300.0),
-            dedep=self.gh.evaluate_dedep(slant_depths)  # Real energy deposit!
+            dedep=self.gh.evaluate_dedep(slant_depths),  # Real energy deposit!
+
+            # Add dummy fields we haven't implemented yet
+            position=distances,
+            age=3/(1+2*773.2/slant_depths),
+            dlmid=np.full(nseg, 150.0),
+            dxseg=np.full(nseg, 20.0),
+            height=30000.0 - (slant_depths * 20.0),    # Dummy altitude conversion
+            nch=self.gh.evaluate_particles(slant_depths),
+            molrad=np.full(nseg, 100.0),
+            nfl=np.zeros((nseg, 1)),  # Placeholder for fluorescence photons
+            pcv=np.zeros((nseg, 1)),  # Placeholder for Cherenkov
+            ncv=np.zeros((nseg, 1))   # Placeholder for Cherenkov
         )
 
 # =====================================================================
