@@ -12,12 +12,26 @@ class Track:
     track_uv: np.ndarray    # shape (3,) unit vector of track direction
 
     # Vectorized Segments (Structure of Arrays)
-    n_segments: int
-    positions: np.ndarray   # shape (n_segments, 3)
-    time_gen: np.ndarray    # shape (n_segments,) emission times
-    altitude: np.ndarray    # shape (n_segments,) altitude at segment mid-points
-    dl_seg: np.ndarray      # shape (n_segments,) segment lengths
-    de_dep: np.ndarray      # shape (n_segments,) energy deposit profile
+    nseg: int               # Number of air shower segments **
+    positions: np.ndarray   # shape (nseg, 3)
+    time_gen: np.ndarray    # shape (nseg,) emission times
+    altitude: np.ndarray    # shape (nseg,) altitude at segment mid-points
+    dlseg: np.ndarray       # shape (nseg,) distance (m) to start of next shower segment **
+    dedep: np.ndarray       # shape (nseg,) energy deposit profile **
+                            # energy deposition (summed over shower) rate (eV/(g/cm2)) at top of shower segment
+
+    # Copying TrackSegment **
+    position: np.ndarray   # shape (nseg,) distance from top of first segment
+    age: np.ndarray        # shape (nseg,) age at middle of each segment
+    dlmid: np.ndarray      # shape (nseg,) density weighted distance (m) to middle of segment
+    dxseg: np.ndarray      # shape (nseg,) total grammage in shower segment
+    height: np.ndarray     # shape (nseg,) altitude of top of shower segment (m) 
+    nch: np.ndarray        # shape (nseg,) number of charged particles in segment
+    molrad: np.ndarray     # shape (nseg,) moliere radius at segment mid-point (m)
+
+    nfl: np.ndarray        # shape (nseg,nwl) number of fluorescence photons produced in segment
+    pcv: np.ndarray        # shape (nseg,nwl) Cherenkov photons added to beam in the previous segment
+    ncv: np.ndarray        # shape (nseg,nwl) Cherenkov photons in beam at top of segment
 
 @dataclass
 class ObservedTrack:
@@ -29,12 +43,12 @@ class ObservedTrack:
     n_pln: np.ndarray       # shape (3,) shower-detector plane normal
 
     # 1D Segment Arrays
-    q_view: np.ndarray      # shape (n_segments,) viewing angles 
+    q_view: np.ndarray      # shape (nseg,) viewing angles 
 
-    # 2D Arrays: [n_mirrors, n_segments]
+    # 2D Arrays: [n_mirrors, nseg]
     distance: np.ndarray    # Distance from segment to each mirror
 
-    # 3D Arrays: [n_mirrors, n_segments, n_wavelength_bands]
+    # 3D Arrays: [n_mirrors, nseg, n_wavelength_bands]
     # Wavelength-dependent light fluxes arriving at the mirrors
     n_fl: np.ndarray        # Fluorescence 
     n_cv_dir: np.ndarray    # Direct Cherenkov
