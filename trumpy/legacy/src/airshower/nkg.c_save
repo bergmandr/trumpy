@@ -1,0 +1,82 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#include "constants.h"
+#include "control.h"
+#include "event.h"
+#include "atmosphere-withdb.h"
+#include "random.h"
+#include "nkg.h"
+
+/*
+ * Gets moliere radius in air (meters).
+ * Taken from mcru's kmolu.f
+ * Mysterious constant c = (20/76) * 36.4
+ */
+double getMoliereRadius (ATMP_t *season, double altitude) {
+
+  double c = 9.578947368;
+  double density = getDensityByAltitude (season, altitude);
+
+  return c / (density * 100.);
+}
+
+/*
+ *  Computes Moliere radius 2 cascade lengths above the current position 
+ *    (cf. Astropart Phys 16 (2001), eq 4)
+ */
+double getSeriousMoliereRadius(ATMP_t *atmp, double z, double cq) {
+  const double kPa2mb = 10.0;
+  double temp, pres, dens;
+
+  getPTDByAltitude(atmp, z, &pres, &temp, &dens);
+  pres *= kPa2mb;
+
+  double ps = pres - 73.94*cq;
+  if ( ps > 0. )
+    return 272.5*temp*pow(ps/pres, 1.0/5.25588)/ps;
+  else
+    return 0.;
+}
+
+/*
+ * Given the age, rp unit vector and SDP normal
+ * of the shower, returns the vector v[] that displaces
+ * the light from the shower axis.
+ */
+void getNKGdr (double age, double molrad, 
+	       double rpuv[], double npln[], double v[]) {
+  int i;
+  double c = _MOLIERE_SCALE_FACTOR_;
+  double r1, r2;
+  double rm, phi, x, y;
+
+  if ( (age<=-c) || age>=(2.25-c/2.) ) {
+  // if ( fabs(age) < DOUBLE_FP_PRECISION ) {
+    for (i=0; i<3; i++)
+      v[i] = 0.;
+    return;
+  }
+
+  r2 = 99.;
+
+  do {
+
+    r1 = RANDOM_NUMBER;
+    r2 = RANDOM_NUMBER;
+
+    // rm = 3. * molrad * pow(r1, 1./age);
+    rm = 3. * molrad * pow(r1, 1./(c+age));
+    phi = 2. * M_PI * RANDOM_NUMBER;
+
+    x =	rm * sin(phi);
+    y =	rm * cos(phi);
+
+    for (i=0; i<3; i++)
+      v[i] = x * npln[i] + y * rpuv[i];
+
+  }  while ( r2 > pow(1+rm/molrad, age-4.5) );
+
+}

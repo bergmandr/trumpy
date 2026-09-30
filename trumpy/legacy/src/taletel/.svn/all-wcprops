@@ -1,0 +1,71 @@
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel
+END
+init_noise.c
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/init_noise.c
+END
+fadc_trig_pld.c
+K 25
+svn:wc:ra_dav:version-url
+V 96
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/fadc_trig_pld.c
+END
+scan.c
+K 25
+svn:wc:ra_dav:version-url
+V 87
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/scan.c
+END
+trig_digit.c
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/trig_digit.c
+END
+electronics_fadc.c
+K 25
+svn:wc:ra_dav:version-url
+V 99
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/electronics_fadc.c
+END
+tlcalibration.c
+K 25
+svn:wc:ra_dav:version-url
+V 96
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/tlcalibration.c
+END
+iang_m.c
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/iang_m.c
+END
+mirror_xy.c
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/mirror_xy.c
+END
+tlelectronics.c
+K 25
+svn:wc:ra_dav:version-url
+V 96
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/tlelectronics.c
+END
+trigger_mir.c
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/trigger_mir.c
+END
+sec_trigger.c
+K 25
+svn:wc:ra_dav:version-url
+V 94
+/svn/dms/software/!svn/ver/2979/branches/development/sources/c/trump/src/taletel/sec_trigger.c
+END
