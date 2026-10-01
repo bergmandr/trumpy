@@ -6,6 +6,7 @@ from trumpy.track import Track
 from trumpy.shower import GaisserHillasProfile
 from trumpy.electronics import TAFADCFrontEnd, PMTState
 from trumpy.simulation import Simulation
+from trumpy.atmosphere import HydrostaticProfile
 
 # =====================================================================
 # 1. Concrete Schedule (Just run 2 trials)
@@ -22,24 +23,34 @@ class FixedTrialsSchedule:
 # 2. Concrete Track Source (Generates a vertical proton shower)
 # =====================================================================
 class VerticalShowerGenerator:
-    def __init__(self, log_e: float):
+    def __init__(self, log_e: float, atmosphere: HydrostaticProfile):
         self.log_e = log_e
+        self.atmosphere = atmosphere
         # Real GH Profile for a proton!
         self.gh = GaisserHillasProfile(x0=-75.8, xmax=773.2, nmax=6.692e9, lambda_inv=59.9)
 
     def generate_event(self, rng: np.random.Generator, timestamp: float) -> Track:
         nseg = 100
-        slant_depths = np.linspace(0, 1200, nseg)
         impact = np.array([0.0, 0.0, 1400.0])
         uv = np.array([0.0, 0.0, -1.0])
+        zenith = 0.0
+        
         # Mock 3D segment positions (tracing backward from impact)
         distances = np.linspace(30000, 0, nseg)
         segment_positions = impact + distances[:, np.newaxis] * (uv * -1.0)
+        
+        # Realistic slant depth from the atmospheric model (g/cm^2)
+        altitudes = segment_positions[:, 2]
+        slant_depths = self.atmosphere.get_slant_depth(altitudes, zenith)
+        
+        # Clip at a tiny value to prevent divide-by-zero at the top of the atmosphere
+        safe_slant_depths = np.clip(slant_depths, 1e-3, None)
+        
         # Build the Track using our real dataclass
         return Track(
             species=1,
             log_e=self.log_e,
-            zenith=0.0,
+            zenith=zenith,
             impact_v=impact,
             track_uv=uv,
             positions=segment_positions,
@@ -49,7 +60,7 @@ class VerticalShowerGenerator:
             dedep=self.gh.evaluate_dedep(slant_depths),  # Real energy deposit!
 
             # Add dummy fields we haven't implemented yet
-            age=3/(1+2*773.2/slant_depths),
+            age=3 / (1 + 2 * 773.2 / safe_slant_depths),
             dlmid=np.full(nseg, 150.0),
             dxseg=np.full(nseg, 20.0),
             nch=self.gh.evaluate_particles(slant_depths),
@@ -60,9 +71,13 @@ class VerticalShowerGenerator:
         )
 
 # =====================================================================
-# 3. Dummy Atmosphere (No extinction, flat yield)
+# 3. Dummy Atmosphere (Inheriting realistic density/grammage)
 # =====================================================================
-class DummyAtmosphere:
+class DummyAtmosphere(HydrostaticProfile):
+    """
+    Acts as a fully compliant AtmosphereModel by pairing realistic 
+    thermodynamic depths with placeholder optics properties for testing.
+    """
     def get_fluorescence_yield(self, altitudes, dedep, wavelengths):
         # Just assume 5 photons emitted per MeV deposited
         return dedep[:, np.newaxis] * np.ones_like(wavelengths) * 5.0
@@ -118,7 +133,7 @@ class SingleTubeExperiment:
         return True
 
     def trace_photons(self, track: Track, photons_at_mirrors: np.ndarray, rng: np.random.Generator):
-        # photons_at_mirrors is now a realistic expected value (e.g., ~1500.4)
+        # photons_at_mirrors is now a realistic expected value
         expected_photons = np.sum(photons_at_mirrors)
         
         # Draw the actual integer number of photons using Poisson statistics
@@ -143,10 +158,14 @@ class SingleTubeExperiment:
 # =====================================================================
 def main():
     print("Initializing Simulation...")
+    
+    # Initialize the true physical atmospheric model and mock optics logic
+    atmos = DummyAtmosphere()
+    
     sim = Simulation(
         experiment=SingleTubeExperiment(),
-        atmosphere=DummyAtmosphere(),
-        source=VerticalShowerGenerator(log_e=19.0),
+        atmosphere=atmos,
+        source=VerticalShowerGenerator(log_e=19.0, atmosphere=atmos),
         schedule=FixedTrialsSchedule(n_trials=2),
         seed=1337
     )

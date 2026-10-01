@@ -8,34 +8,34 @@ from trumpy.track import Track
 # --- Protocols defining the expected interfaces ---
 
 class TrackSource(Protocol):
-    def generate_event(self, rng: np.random.Generator, timestamp: float) -> Track:
-        ...
+    def generate_event(self, rng: np.random.Generator, timestamp: float)->Track: ...
 
 class RunSchedule(Protocol):
-    def get_trials(self) -> Iterator[Tuple[int, float]]:
+    def get_trials(self)->Iterator[Tuple[int, float]]:
         """Yields (trial_id, timestamp_seconds) until the run is complete."""
         ...
 
 class AtmosphereModel(Protocol):
-    def get_fluorescence_yield(self, altitudes: np.ndarray, dedep: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
-        ...
-    def get_transmission(self, emission_points: np.ndarray, mirror_centers: np.ndarray, wavelengths: np.ndarray) -> np.ndarray:
-        ...
+    def get_temperature(self, altitudes: np.ndarray)->np.ndarray: ...
+    def get_pressure(self, altitudes: np.ndarray)-> np.ndarray: ...
+    def get_density(self, altitudes: np.ndarray)->np.ndarray: ...
+    def get_grammage(self, altitudes: np.ndarray)->np.ndarray: ...
+    def get_slant_depth(self, altitudes: np.ndarray, zenith_angle: float)->np.ndarray: ...
+    def get_fluorescence_yield(self, altitudes: np.ndarray, dedep: np.ndarray, wavelengths: np.ndarray)->np.ndarray: ...
+    def get_transmission(self, emission_points: np.ndarray, mirror_centers: np.ndarray, wavelengths: np.ndarray)->np.ndarray: ...
 
 class Experiment(Protocol):
     wavelength_bands: np.ndarray
     mirror_centers: np.ndarray
-    
-    def passes_fast_cuts(self, track: Track) -> bool:
+    def passes_fast_cuts(self, track: Track)->bool:
         """Evaluates EvsRp and FOV cuts to quickly discard doomed tracks."""
         ...
-    def trace_photons(self, track: Track, photons_at_mirrors: np.ndarray, rng: np.random.Generator) -> ak.Array:
+    def trace_photons(self, track: Track, photons_at_mirrors: np.ndarray, rng: np.random.Generator)->ak.Array:
         """Returns jagged PE arrival times grouped by PMT."""
         ...
-    def process_electronics(self, pe_times: ak.Array, rng: np.random.Generator) -> ak.Array:
+    def process_electronics(self, pe_times: ak.Array, rng: np.random.Generator)->ak.Array:
         """Digitizes waveforms and evaluates the hardware trigger."""
         ...
-
 
 # --- The Main Orchestrator ---
 
@@ -58,7 +58,7 @@ class Simulation:
         # Initialize the global random number generator for this run
         self.rng = np.random.default_rng(seed)
 
-    def run(self) -> ak.Array:
+    def run(self)->ak.Array:
         """
         Executes the main event loop and returns an Awkward record array of triggered events.
         """
