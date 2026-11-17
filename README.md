@@ -1,6 +1,8 @@
 # TRUMP in python
 
-This is an implementation of the TRUMP air-fluorescence detector simulation MC program. The fundamental C `structs` have been implemented as python `dataclass`es. 
+This is an implementation of the TRUMP air-fluorescence detector simulation MC program. The fundamental C `structs` have been implemented as python `dataclass`es.
+
+See [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) for an assessment of ported modules and the roadmap of remaining subsystems. 
 
 ## Simulation
 
