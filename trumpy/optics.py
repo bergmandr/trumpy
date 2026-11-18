@@ -201,3 +201,89 @@ def is_shadowed_by_cylinder_strut(origins, directions, hit_distances, strut_pt1,
     shadowed = hit_inf_cylinder & valid_finite_hit & (t_first > 0) & (t_first < hit_distances)
     
     return shadowed
+
+
+def snell_shift(ray_dirs: np.ndarray, n_air: float, n_medium: float, thickness: float) -> np.ndarray:
+    """
+    Vectorized refraction shift through a planar optical layer (Paraglas cover or BG3 filter).
+    Direct port of snellShift() in legacy/src/raytrace/camera.c.
+
+    Parameters
+    ----------
+    ray_dirs : (N, 3) array of unit direction vectors of reflected rays
+    n_air : refractive index of air (e.g., 1.000293)
+    n_medium : refractive index of optical layer (e.g., 1.50 for Paraglas, 1.53 for BG3)
+    thickness : thickness of layer in meters
+
+    Returns
+    -------
+    shift : (N, 3) lateral displacement vectors in the camera plane (z-component is 0)
+    """
+    sinthe1 = np.sqrt(np.clip(1.0 - ray_dirs[:, 2] ** 2, 0.0, 1.0))
+    sinthe2 = (n_air / n_medium) * sinthe1
+
+    dist = thickness * (sinthe1 - sinthe2)
+    phi = np.arctan2(ray_dirs[:, 1], ray_dirs[:, 0])
+
+    shift = np.zeros_like(ray_dirs)
+    shift[:, 0] = -dist * np.cos(phi)
+    shift[:, 1] = -dist * np.sin(phi)
+    return shift
+
+
+def pmt_detect_hex(
+    x_cam: np.ndarray,
+    y_cam: np.ndarray,
+    x_tube: np.ndarray,
+    y_tube: np.ndarray,
+    flat2flat: float,
+    point2point: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Vectorized hexagonal PMT detection on the camera focal plane.
+    Direct port of pmtDetect() in legacy/src/raytrace/camera.c.
+
+    Parameters
+    ----------
+    x_cam, y_cam : (N,) arrays of ray impact coordinates on the PMT plane (m)
+    x_tube, y_tube : (M,) arrays of PMT center coordinates on the PMT plane (m)
+    flat2flat : float, hexagonal PMT flat-to-flat width (m)
+    point2point : float, hexagonal PMT point-to-point diameter (m)
+
+    Returns
+    -------
+    hit_pmt_indices : (N,) array of PMT indices (or -2 for MISSED_TUBE)
+    valid_mask : (N,) boolean mask where True indicates a valid PMT hit
+    """
+    if len(x_cam) == 0:
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=bool)
+
+    dx = x_cam[:, np.newaxis] - x_tube[np.newaxis, :]
+    dy = y_cam[:, np.newaxis] - y_tube[np.newaxis, :]
+    dist = np.sqrt(dx ** 2 + dy ** 2)
+
+    closest_tube = np.argmin(dist, axis=1)
+    min_dist = dist[np.arange(len(x_cam)), closest_tube]
+
+    # Fast inner-circle accept and outer-circle reject
+    inside_inscribed = min_dist < (flat2flat / 2.0)
+    within_circumscribed = min_dist <= (point2point / 2.0)
+
+    # Hexagonal boundary check for rays between inscribed and circumscribed radii
+    angles = np.deg2rad(30.0 + np.arange(6) * 60.0)
+    hex_x = -np.cos(angles)  # shape (6,)
+    hex_y = -np.sin(angles)  # shape (6,)
+
+    rel_x = (x_cam - x_tube[closest_tube])[:, np.newaxis]  # (N, 1)
+    rel_y = (y_cam - y_tube[closest_tube])[:, np.newaxis]  # (N, 1)
+
+    seg_x = (point2point / 2.0) * hex_x[np.newaxis, :] + rel_x  # (N, 6)
+    seg_y = (point2point / 2.0) * hex_y[np.newaxis, :] + rel_y  # (N, 6)
+    seg_norm = np. clip(np.sqrt(seg_x ** 2 + seg_y ** 2), 1e-12, None)
+
+    dots = (hex_x[np.newaxis, :] * seg_x + hex_y[np.newaxis, :] * seg_y) / seg_norm
+    inside_hex = np.all(dots >= 0.5, axis=1)
+
+    valid_mask = inside_inscribed | (within_circumscribed & inside_hex)
+    hit_pmt_indices = np.where(valid_mask, closest_tube, -2)
+    return hit_pmt_indices, valid_mask

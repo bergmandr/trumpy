@@ -151,10 +151,19 @@ class AerosolModel:
 class Atmosphere:
     """Manages the atmospheric state and computes optical transmission and fluorescence yield."""
 
-    def __init__(self, profile: AtmosphericProfile, aerosol: AerosolModel, fy_model: FluorescenceModel):
+    def __init__(
+        self,
+        profile: AtmosphericProfile,
+        aerosol: AerosolModel,
+        fy_model: FluorescenceModel,
+        rayleigh_ref_grammage: float = 2969.6,
+        rayleigh_ref_wl: float = 400.0,
+    ):
         self.profile = profile
         self.aerosol = aerosol
         self.fy_model = fy_model
+        self.rayleigh_ref_grammage = rayleigh_ref_grammage
+        self.rayleigh_ref_wl = rayleigh_ref_wl
 
     # Expose profile getters to satisfy AtmosphereModel protocol
     def get_density(self, altitudes): return self.profile.get_density(altitudes)

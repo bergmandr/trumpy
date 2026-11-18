@@ -1,5 +1,7 @@
 import numpy as np
-from dataclasses import dataclass
+import awkward as ak
+from dataclasses import dataclass, field
+from typing import Optional
 
 @dataclass
 class Track:
@@ -53,24 +55,59 @@ class Track:
         # Using np.sum with axis=1 performs a broadcasted row-wise dot product
         return np.sum(delta * self.track_uv, axis=1)
 
+    @property
+    def length(self) -> float:
+        """Total length of air shower from top of first segment to impact point (m)."""
+        return float(np.linalg.norm(self.impact_v - self.positions[0]))
+
+
 @dataclass
 class ObservedTrack:
-    """Site-specific projections, atmospheric transmission, and photon fluxes."""
+    """Site-specific projections, atmospheric transmission, and photon fluxes (analogous to fdsite.h)."""
     site_id: int
-    rp: float               # Impact parameter distance
-    psi: float              # Shower angle in the SD plane
-    rp_uv: np.ndarray       # shape (3,) unit vector to point of closest approach
-    n_pln: np.ndarray       # shape (3,) shower-detector plane normal
+    rp: float               # Impact parameter distance (m)
+    psi: float              # Shower angle in the SD plane (radians)
+    rp_uv: np.ndarray       # shape (3,) unit vector to point of closest approach in site coords
+    n_pln: np.ndarray       # shape (3,) shower-detector plane normal in site coords
 
     # 1D Segment Arrays
-    q_view: np.ndarray      # shape (nseg,) viewing angles 
+    q_view: np.ndarray      # shape (nseg,) viewing angles (radians)
 
     # 2D Arrays: [n_mirrors, nseg]
-    distance: np.ndarray    # Distance from segment to each mirror
+    distance: np.ndarray    # Distance from segment midpoint to each mirror (m)
 
     # 3D Arrays: [n_mirrors, nseg, n_wavelength_bands]
     # Wavelength-dependent light fluxes arriving at the mirrors
-    n_fl: np.ndarray        # Fluorescence 
+    n_fl: np.ndarray        # Fluorescence
     n_cv_dir: np.ndarray    # Direct Cherenkov
     n_cv_mie: np.ndarray    # Mie-scattered Cherenkov
-    n_cv_ray: np.ndarray    # Rayleigh-scattered Cherenkov    
+    n_cv_ray: np.ndarray    # Rayleigh-scattered Cherenkov
+
+    # Optional site-coordinate geometry arrays mirroring fdsite.h ObservedTrack / ObservedTrackSegment
+    uv: Optional[np.ndarray] = None           # shape (3,) shower direction unit vector in site coords
+    rimp: Optional[np.ndarray] = None         # shape (3,) shower impact position in site coords
+    local_vsite: Optional[np.ndarray] = None  # shape (3,) CLF to Rp origin in CLF coords
+    local_vmir: Optional[np.ndarray] = None   # shape (n_mirrors, 3) mirror locations wrt Rp origin in site coords
+    t_gen: Optional[np.ndarray] = None        # shape (nseg,) generation time at segment midpoint (ns)
+    cos_the: Optional[np.ndarray] = None      # shape (n_mirrors, nseg) cosine of angle to mirror axis
+    geo_factor: Optional[np.ndarray] = None   # shape (n_mirrors, nseg) solid-angle factor cq * A / (4*pi*r^2)
+    dtheta: Optional[np.ndarray] = None       # shape (n_mirrors, nseg) angular extent of segment (radians)
+    in_fov: Optional[np.ndarray] = None       # shape (n_mirrors, nseg) boolean mask (cos_the > cos(15 deg))
+
+
+@dataclass
+class PETimes:
+    """
+    Arrival times of photoelectrons indexed by camera and tube.
+    Direct Python/Awkward analogue of PETimes in legacy/inc/acpttrack.h.
+    """
+    t1: float                       # Time of first PE across site (ns)
+    t2: float                       # Time of last PE across site (ns)
+    nmir: int                       # Number of participating cameras with >= 1 PE
+    mir: np.ndarray                 # shape (nmir,) participating camera IDs
+    t: ak.Array                     # Jagged array of PE arrival times: shape (n_cameras, n_tubes, var)
+    n: Optional[ak.Array] = None    # Optional jagged array of PE weights/counts matching `t`
+
+    def for_camera(self, cam_id: int) -> ak.Array:
+        """Returns the (n_tubes, var) jagged array of PE arrival times for a single camera."""
+        return self.t[cam_id]
