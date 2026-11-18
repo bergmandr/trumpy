@@ -131,9 +131,10 @@ class AerosolModel:
         
         # Analytic integral of exp(-h / scale_height)
         # Handle perfectly horizontal rays (dh == 0) with np.where
+        safe_dh = np.where(np.abs(dh) > 1e-3, dh, 1.0)
         effective_path = np.where(
             np.abs(dh) > 1e-3,
-            distances * (self.scale_height / dh) * (
+            distances * (self.scale_height / safe_dh) * (
                 np.exp(-alt_a / self.scale_height) - np.exp(-alt_b / self.scale_height)
             ),
             distances * np.exp(-alt_a / self.scale_height) # Horizontal limit
@@ -193,9 +194,10 @@ class Atmosphere:
         
         # Average density = dX / dh
         # Multiply by distance to get total slant grammage (g/cm^2)
+        safe_abs_dh = np.where(np.abs(dh) > 1e-3, np.abs(dh), 1.0)
         slant_grammage = np.where(
             np.abs(dh) > 1e-3,
-            np.abs(grammage_a - grammage_b) / np.abs(dh) * distances,
+            np.abs(grammage_a - grammage_b) / safe_abs_dh * distances,
             self.profile.get_density(alt_a) * distances * 0.1 
         )
         

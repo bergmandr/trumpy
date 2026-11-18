@@ -212,4 +212,4 @@ def test_end_to_end_fdsite_and_petimes(vertical_track, single_mirror_site):
     assert len(results) == 1
     assert "readout" in results.fields
     assert len(results[0].readout.pmt_id) == 256
-    assert results[0].readout.waveform.shape == (256, 256)
+    assert ak.to_numpy(results[0].readout.waveform).shape == (256, 256)
