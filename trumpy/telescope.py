@@ -860,22 +860,28 @@ class FDSite:
         self,
         pe_times: Union[PETimes, ak.Array],
         rng: np.random.Generator,
+        pre_trigger_ns: float = 3000.0,
     ) -> tuple[ak.Array, bool]:
         """
         Satisfies Experiment.process_electronics() protocol for Simulation.run().
-        Digitizes PE arrival times across cameras and evaluates trigger status.
+        Aligns the FADC readout window relative to the earliest PE arrival time (pe_times.t1),
+        digitizes PE arrival times across cameras, and evaluates trigger status.
         """
         if isinstance(pe_times, PETimes):
+            # Reference the readout window start time to `pre_trigger_ns` before the first PE (taelectronics.c:846)
+            t_ref = (pe_times.t1 - pre_trigger_ns) if pe_times.nmir > 0 else 0.0
+
             if self.n_mirrors == 1:
+                shifted_pe = pe_times.for_camera(0) - t_ref
                 readout = self.electronics.digitize(
-                    pe_times.for_camera(0), self.pmt_state, rng
+                    shifted_pe, self.pmt_state, rng
                 )
                 return readout, (pe_times.nmir > 0)
 
             cam_readouts = []
             for icam in range(self.n_mirrors):
-                cam_pe = pe_times.for_camera(icam)
-                cam_ro = self.electronics.digitize(cam_pe, self.pmt_state, rng)
+                shifted_pe = pe_times.for_camera(icam) - t_ref
+                cam_ro = self.electronics.digitize(shifted_pe, self.pmt_state, rng)
                 cam_readouts.append(cam_ro)
             return ak.Array(cam_readouts), (pe_times.nmir > 0)
 

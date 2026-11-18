@@ -1,15 +1,22 @@
 import numpy as np
 import awkward as ak
 
-# Import the modules we just built
 from trumpy.track import Track
-from trumpy.shower import GaisserHillasProfile
-from trumpy.electronics import TAFADCFrontEnd, PMTState
+from trumpy.shower import GaisserHillasProfile, get_moliere_radius
+from trumpy.camera import CameraAssembly
+from trumpy.telescope import TelescopeGeometry, FDSite
+from trumpy.electronics import (
+    TAFADCFrontEnd,
+    PMTState,
+    generate_ta_impulse_response,
+)
+from trumpy.atmosphere import HydrostaticProfile, AerosolModel, Atmosphere
+from trumpy.fluorescence import KakimotoYield
 from trumpy.simulation import Simulation
-from trumpy.atmosphere import HydrostaticProfile
+
 
 # =====================================================================
-# 1. Concrete Schedule (Just run 2 trials)
+# 1. Concrete Schedule (Run 2 trials)
 # =====================================================================
 class FixedTrialsSchedule:
     def __init__(self, n_trials: int):
@@ -19,174 +26,167 @@ class FixedTrialsSchedule:
         for i in range(self.n_trials):
             yield i, float(i * 1000)
 
+
 # =====================================================================
 # 2. Concrete Track Source (Generates a vertical proton shower)
 # =====================================================================
 class VerticalShowerGenerator:
-    def __init__(self, log_e: float, atmosphere: HydrostaticProfile):
+    def __init__(self, log_e: float, atmosphere: Atmosphere):
         self.log_e = log_e
         self.atmosphere = atmosphere
-        # Real GH Profile for a proton!
-        self.gh = GaisserHillasProfile(x0=-75.8, xmax=773.2, nmax=6.692e9, lambda_inv=59.9)
+        self.gh = GaisserHillasProfile(
+            x0=-75.8, xmax=773.2, nmax=6.692e9, lambda_inv=59.9
+        )
 
     def generate_event(self, rng: np.random.Generator, timestamp: float) -> Track:
         nseg = 100
         impact = np.array([0.0, 0.0, 1400.0])
         uv = np.array([0.0, 0.0, -1.0])
         zenith = 0.0
-        
-        # Mock 3D segment positions (tracing backward from impact)
-        distances = np.linspace(30000, 0, nseg)
-        segment_positions = impact + distances[:, np.newaxis] * (uv * -1.0)
-        
-        # Realistic slant depth from the atmospheric model (g/cm^2)
+
+        # Segment top positions tracing downward from 12 km altitude to ground (1.4 km)
+        distances = np.linspace(10600.0, 0.0, nseg)
+        segment_positions = impact + distances[:, np.newaxis] * (-uv)
+        dlseg = np.full(nseg, 10600.0 / nseg)
+
+        # Slant depth and density from the atmospheric model
         altitudes = segment_positions[:, 2]
         slant_depths = self.atmosphere.get_slant_depth(altitudes, zenith)
-        
-        # Clip at a tiny value to prevent divide-by-zero at the top of the atmosphere
         safe_slant_depths = np.clip(slant_depths, 1e-3, None)
-        
-        # Build the Track using our real dataclass
+        dxseg = np.gradient(slant_depths)
+
+        mid_altitudes = altitudes + 0.5 * dlseg * uv[2]
+        densities = self.atmosphere.get_density(mid_altitudes)
+
         return Track(
-            species=1,
+            species=14,  # Proton (PSPEC_PROTON)
             log_e=self.log_e,
             zenith=zenith,
             impact_v=impact,
             track_uv=uv,
             positions=segment_positions,
             nseg=nseg,
-            time_gen=np.linspace(0, 30000, nseg),  # 30 us track time
-            dlseg=np.full(nseg, 300.0),
-            dedep=self.gh.evaluate_dedep(slant_depths),  # Real energy deposit!
-
-            # Add dummy fields we haven't implemented yet
-            age=3 / (1 + 2 * 773.2 / safe_slant_depths),
-            dlmid=np.full(nseg, 150.0),
-            dxseg=np.full(nseg, 20.0),
+            time_gen=np.linspace(0.0, 35358.0, nseg),
+            dlseg=dlseg,
+            dedep=self.gh.evaluate_dedep(slant_depths) * dxseg,
+            age=3.0 / (1.0 + 2.0 * self.gh.xmax / safe_slant_depths),
+            dlmid=0.5 * dlseg,
+            dxseg=dxseg,
             nch=self.gh.evaluate_particles(slant_depths),
-            molrad=np.full(nseg, 100.0),
-            nfl=np.zeros((nseg, 1)),  # Placeholder for fluorescence photons
-            pcv=np.zeros((nseg, 1)),  # Placeholder for Cherenkov
-            ncv=np.zeros((nseg, 1))   # Placeholder for Cherenkov
+            molrad=get_moliere_radius(densities),
+            nfl=np.zeros((nseg, 1)),
+            pcv=np.zeros((nseg, 1)),
+            ncv=np.zeros((nseg, 1)),
         )
 
-# =====================================================================
-# 3. Dummy Atmosphere (Inheriting realistic density/grammage)
-# =====================================================================
-class DummyAtmosphere(HydrostaticProfile):
-    """
-    Acts as a fully compliant AtmosphereModel by pairing realistic 
-    thermodynamic depths with placeholder optics properties for testing.
-    """
-    def get_fluorescence_yield(self, altitudes, dedep, wavelengths):
-        # Just assume 5 photons emitted per MeV deposited
-        return dedep[:, np.newaxis] * np.ones_like(wavelengths) * 5.0
-
-    def get_transmission(self, emission_points, mirror_centers, wavelengths):
-        N, M, W = len(emission_points), len(mirror_centers), len(wavelengths)
-        transmission = np.ones((N, M, W))
-        
-        # Mirror area in square meters (approximate TA/HiRes mirror)
-        mirror_area = 3.0 
-        
-        for m in range(M):
-            # Calculate distance squared from each segment to this mirror
-            diff = emission_points - mirror_centers[m]
-            dist_sq = np.sum(diff**2, axis=1)
-            
-            # Solid angle fraction: A / (4 * pi * r^2)
-            # Clip at 1.0 to prevent divide-by-zero if the track hits the mirror exactly
-            dist_sq = np.clip(dist_sq, 1.0, None)
-            solid_angle_fraction = mirror_area / (4.0 * np.pi * dist_sq)
-            
-            # Apply this scalar to all wavelength bands
-            transmission[:, m, :] *= solid_angle_fraction[:, np.newaxis]
-            
-        return transmission
 
 # =====================================================================
-# 4. Dummy Experiment (1 PMT, real TA Electronics)
+# 3. Build a 256-PMT Telescope Array FD Site (FDSite)
 # =====================================================================
-class SingleTubeExperiment:
-    def __init__(self):
-        self.wavelength_bands = np.array([350.0])  # 1 wavelength band
-        self.mirror_centers = np.array([[10000.0, 0.0, 1400.0]]) # 1 mirror
-        # Real PMT State (Gain = 1.0, Pedestal = 100 FADC counts)
-        self.pmt_state = PMTState(
-            gain=np.array([1.0]), 
-            pedestal=np.array([100.0]), 
-            pedestal_rms=np.array([2.0]), 
-            live_flag=np.array([True])
-        )
-        # Real TA FADC Pipeline (10MHz sampling, 56ns shaping, 9MHz NSB)
-        t = np.arange(0, 1000, 1.0)
-        pulse = (t / 56.0)**5.0 * np.exp(-t / 56.0)
-        pulse /= np.sum(pulse)
-        self.electronics = TAFADCFrontEnd(
-            sample_rate_mhz=10.0, 
-            trace_length_bins=256, 
-            impulse_response=pulse, 
-            nsb_rate_mhz=9.0
-        )
+def build_single_telescope_site() -> FDSite:
+    # Standard 16x16 hexagonal TA camera with Paraglas window and BG3 filter
+    camera = CameraAssembly.default_ta_camera(n_wavelengths=1)
+    n_tubes = len(camera.pmt_vectors)
 
-    def passes_fast_cuts(self, track: Track) -> bool:
-        return True
+    # Place the FD station 10 km East of the shower core (x = 10,000 m, z = 1,400 m)
+    # Point the mirror optical axis toward the shower (-x direction, elevated ~18 deg)
+    axis_z = np.array([-1.0, 0.0, 0.32])
+    axis_z /= np.linalg.norm(axis_z)
+    axis_x = np.array([0.0, 1.0, 0.0])
+    axis_y = np.cross(axis_z, axis_x)
+    site2cam = np.vstack([axis_x, axis_y, axis_z])[np.newaxis, :, :]
 
-    def trace_photons(self, track: Track, photons_at_mirrors: np.ndarray, rng: np.random.Generator):
-        # photons_at_mirrors is now a realistic expected value
-        expected_photons = np.sum(photons_at_mirrors)
-        
-        # Draw the actual integer number of photons using Poisson statistics
-        total_photons = rng.poisson(expected_photons)
-        
-        print(f"Tracing {total_photons} photons hitting the mirror...")
-        
-        # Simulate photon arrival times spread over the 30,000 ns track duration
-        arrival_times = rng.uniform(0, 30000, size=total_photons)
-        
-        # Return a jagged Awkward array: [ [t1, t2, t3...] ] for PMT 0
-        return ak.Array([arrival_times])
+    geometry = TelescopeGeometry(
+        mirror_centers=np.array([[0.0, 0.0, 0.0]]),
+        mirror_radii=np.array([6.067]),
+        camera_rotations=site2cam,
+        pmt_vectors=camera.pmt_vectors[np.newaxis, :, :],
+        pmt_live_flags=np.ones((1, n_tubes), dtype=bool),
+        mirror_pointing=axis_z[np.newaxis, :],
+        mirror_diameters=np.array([3.3]),
+        camera_separations=np.array([3.0]),
+        spot_size_blur=np.array([0.005]),
+        local_vsite=np.array([10000.0, 0.0, 1400.0]),
+        site2clf=np.eye(3),
+    )
 
-    def process_electronics(self, pe_times: ak.Array, rng: np.random.Generator):
-        # Run the real DSP pipeline
-        readout = self.electronics.digitize(pe_times, self.pmt_state, rng)
-        # Dummy trigger: always save the event
-        return readout, True
+    pmt_state = PMTState(
+        gain=np.full(n_tubes, 1.0),
+        pedestal=np.full(n_tubes, 100.0),
+        pedestal_rms=np.full(n_tubes, 2.0),
+        live_flag=np.ones(n_tubes, dtype=bool),
+    )
+
+    electronics = TAFADCFrontEnd(
+        sample_rate_mhz=10.0,
+        trace_length_bins=256,
+        impulse_response=generate_ta_impulse_response(tau_ns=56.0, alpha=5.0),
+        nsb_rate_mhz=9.0,
+    )
+
+    return FDSite(
+        site_id=0,
+        geometry=geometry,
+        camera=camera,
+        pmt_state=pmt_state,
+        electronics=electronics,
+        wavelength_bands=np.array([350.0]),
+    )
+
 
 # =====================================================================
 # RUN THE SIMULATION
 # =====================================================================
 def main():
-    print("Initializing Simulation...")
-    
-    # Initialize the true physical atmospheric model and mock optics logic
-    atmos = DummyAtmosphere()
-    
+    print("Initializing Simulation with FDSite, CameraAssembly, and Atmosphere...")
+
+    atmos = Atmosphere(
+        profile=HydrostaticProfile(),
+        aerosol=AerosolModel(
+            hal=25000.0, scale_height=1000.0, ref_wavelength=355.0
+        ),
+        fy_model=KakimotoYield(),
+    )
+
+    site = build_single_telescope_site()
+
     sim = Simulation(
-        experiment=SingleTubeExperiment(),
+        experiment=site,
         atmosphere=atmos,
         source=VerticalShowerGenerator(log_e=19.0, atmosphere=atmos),
         schedule=FixedTrialsSchedule(n_trials=2),
-        seed=1337
+        seed=1337,
     )
-    
+
     print("Running...")
     results = sim.run()
-    
+
     print("\n=== SIMULATION RESULTS ===")
     print(f"Awkward Array Schema:\n{results.type}")
-    
-    # Inspect the specific FADC readout for the first event
+
     print("\n--- Event 0 Data ---")
     print(f"Log Energy: {results[0].log_e}")
-    
+
     readout = results[0].readout
-    print(f"PMT IDs hit: {readout.pmt_id.tolist()}")
-    
-    # Print the first 20 bins of the FADC trace for PMT 0
-    fadc_trace = readout.waveform[0].tolist()
-    print(f"FADC Trace (First 20 bins, including 100 count pedestal and 9MHz NSB noise):")
-    print(fadc_trace[:20])
+    waveforms = ak.to_numpy(readout.waveform)
+    print(f"Total live PMTs read out: {len(readout.pmt_id)}")
+    print(f"Waveform array shape: {waveforms.shape}")
+
+    # Find the PMT with the highest peak FADC count above the 100-count pedestal
+    peak_pmt_idx = int(np.argmax(np.max(waveforms, axis=1)))
+    peak_bin_idx = int(np.argmax(waveforms[peak_pmt_idx]))
+    peak_val = int(waveforms[peak_pmt_idx, peak_bin_idx])
+    print(
+        f"Brightest tube: PMT {peak_pmt_idx} (peak = {peak_val} FADC counts at time slice {peak_bin_idx})"
+    )
+
+    window_start = max(0, peak_bin_idx - 5)
+    window_end = min(waveforms.shape[1], window_start + 20)
+    print(
+        f"FADC Trace for PMT {peak_pmt_idx} (bins {window_start}..{window_end - 1} around peak):"
+    )
+    print(waveforms[peak_pmt_idx, window_start:window_end].tolist())
+
 
 if __name__ == "__main__":
     main()
