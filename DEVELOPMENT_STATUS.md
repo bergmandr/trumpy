@@ -40,3 +40,35 @@ Replace the mock `VerticalShowerGenerator` in [`example_run.py`](example_run.py)
 
 ### Priority 4: Hardware Trigger Simulator (`taelectronics.c` / `trigger-simulator.h`)
 - Port the TA trigger recognition (`simTATriggerResponse` / `fadcSig` / 5-tube & 3-tube patterns in [`taelectronics.c`](trumpy/legacy/src/fadctel/taelectronics.c)) into [`trumpy/electronics.py`](trumpy/electronics.py) so `process_electronics` evaluates hardware trigger conditions rather than returning `is_triggered = True`.
+
+---
+
+## 3. Priority 1 Implementation: Detector Site (`FDSite`), `PETimes`, & Ray-Tracing Orchestrator (November 18, 2026)
+
+### Summary of Changes
+
+1. **`PETimes` & `ObservedTrack` ([`trumpy/track.py`](trumpy/track.py))**
+   - Added `@dataclass class PETimes` mirroring [`acpttrack.h`](trumpy/legacy/inc/acpttrack.h) (`t1`, `t2`, `nmir`, `mir`, jagged `t` and `n` Awkward arrays, plus `.for_camera(cam_id)`).
+   - Extended `ObservedTrack` with optional site-coordinate geometry fields (`uv`, `rimp`, `local_vsite`, `local_vmir`, `t_gen`, `cos_the`, `geo_factor`, `dtheta`, `in_fov`).
+
+2. **Site Geometry & Ray-Tracing Orchestrator ([`trumpy/telescope.py`](trumpy/telescope.py))**
+   - **Vectorized [`fdsite.c`](trumpy/legacy/src/raytrace/fdsite.c) routines** using NumPy and `scipy.spatial.transform.Rotation`:
+     - `get_sdpn_vector`, `get_rp_origin`, `get_observed_track_origin`, `get_rp_vector`, `get_psi_angle`, `get_zenith_angle`, `get_viewing_angles`, and `apply_e_vs_rp_cut`.
+   - **`FDSite` (`Experiment` implementation):**
+     - `passes_fast_cuts(track)`: computes $R_p$ via `get_rp_vector` and evaluates `apply_e_vs_rp_cut`.
+     - `get_observed_track(track, attenuated_fluorescence)`: vectorized port of `getObservedTrackGeom` + `fillObservedTrackLight` ([`fdsite.c`](trumpy/legacy/src/raytrace/fdsite.c)), computing solid-angle geometric factors $A \cos\theta / (4\pi r^2)$ and FOV culling ($\cos\theta > \cos 15^\circ$).
+     - `do_ray_trace(cam_id, origins_site, rp_uv, n_pln, ages, molrads, rng)`: vectorized port of `doRayTrace` ([`doRayTrace.c`](trumpy/legacy/src/raytrace/doRayTrace.c)) and `trace` ([`trace.c`](trumpy/legacy/src/raytrace/trace.c)).
+     - `get_accepted_track(track, observed_track, rng) -> PETimes`: vectorized port of `getAcceptedTrack` ([`acpttrack.c`](trumpy/legacy/src/raytrace/acpttrack.c)) including wavelength reduction factors, Poisson photon sampling, longitudinal segment spreading, tube live-flag filtering, saturation rate checks, and per-tube arrival time sorting.
+     - `trace_photons` and `process_electronics`: connect `ObservedTrack` $\rightarrow$ `PETimes` $\rightarrow$ `TAFADCFrontEnd.digitize` for `Simulation.run()`.
+
+3. **Camera, Optical, & Atmospheric Helpers ([`trumpy/optics.py`](trumpy/optics.py), [`trumpy/camera.py`](trumpy/camera.py), [`trumpy/shower.py`](trumpy/shower.py), [`trumpy/atmosphere.py`](trumpy/atmosphere.py))**
+   - Added vectorized `snell_shift` and hexagonal PMT boundary detection `pmt_detect_hex` (from [`camera.c`](trumpy/legacy/src/raytrace/camera.c)) to [`trumpy/optics.py`](trumpy/optics.py).
+   - Added focal-plane parameters and `CameraAssembly.default_ta_camera()` (256-PMT 16×16 hexagonal grid with Paraglas and BG3 `OpticalLayer`s) to [`trumpy/camera.py`](trumpy/camera.py).
+   - Added vectorized `get_moliere_radius` and `get_nkg_dr` (from [`nkg.c`](trumpy/legacy/src/airshower/nkg.c)) to [`trumpy/shower.py`](trumpy/shower.py).
+   - Initialized `rayleigh_ref_grammage = 2969.6` and `rayleigh_ref_wl = 400.0` (from [`scatter.c`](trumpy/legacy/src/airshower/scatter.c)) in `Atmosphere.__init__` ([`trumpy/atmosphere.py`](trumpy/atmosphere.py)).
+
+4. **Unit Tests, Example Script, & Runtime Fine-Tuning ([`tests/test_telescope.py`](tests/test_telescope.py), [`example_run.py`](example_run.py))**
+   - Added unit and integration tests in [`tests/test_telescope.py`](tests/test_telescope.py) and updated [`example_run.py`](example_run.py) to run with `FDSite`, `TelescopeGeometry`, `CameraAssembly`, and `Atmosphere` (archiving the previous dummy-experiment script as [`example_run_202610.py`](example_run_202610.py)).
+   - **FADC readout window alignment:** Referenced the digitization time window in `FDSite.process_electronics` to `t_ref = pe_times.t1 - pre_trigger_ns` (matching `tref` in [`taelectronics.c`](trumpy/legacy/src/fadctel/taelectronics.c)) so photons arriving from distant showers ($R_p \sim 10\text{ km}$, time-of-flight $\sim 33\ \mu\text{s}$) land inside the 256-bin FADC readout window.
+   - **Horizontal ray stability & Awkward v2 compatibility:** Guarded `dh == 0` denominators inside `np.where` in [`trumpy/atmosphere.py`](trumpy/atmosphere.py) to avoid divide-by-zero `RuntimeWarning`s on horizontal rays, and used `ak.to_numpy(...).shape` when inspecting Awkward v2 waveform arrays.
+
